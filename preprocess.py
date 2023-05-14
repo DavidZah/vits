@@ -1,6 +1,8 @@
 import argparse
 import text
 from utils import load_filepaths_and_text
+from tqdm import tqdm
+import concurrent.futures
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -10,15 +12,19 @@ if __name__ == '__main__':
   parser.add_argument("--text_cleaners", nargs="+", default=["english_cleaners2"])
 
   args = parser.parse_args()
-    
+
+
+  def clean_text(entry):
+    original_text = entry[args.text_index]
+    cleaned_text = text._clean_text(original_text, args.text_cleaners)
+    entry[args.text_index] = cleaned_text
+    return entry
 
   for filelist in args.filelists:
     print("START:", filelist)
     filepaths_and_text = load_filepaths_and_text(filelist)
-    for i in range(len(filepaths_and_text)):
-      original_text = filepaths_and_text[i][args.text_index]
-      cleaned_text = text._clean_text(original_text, args.text_cleaners)
-      filepaths_and_text[i][args.text_index] = cleaned_text
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+      filepaths_and_text = list(tqdm(executor.map(clean_text, filepaths_and_text), total=len(filepaths_and_text)))
 
     new_filelist = filelist + "." + args.out_extension
     with open(new_filelist, "w", encoding="utf-8") as f:
